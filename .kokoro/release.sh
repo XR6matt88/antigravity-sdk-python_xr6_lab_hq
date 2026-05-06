@@ -61,10 +61,11 @@ echo "=== Antigravity SDK Release v${VERSION} ==="
 
 # --- Python environment ---
 echo "--- Setting up Python environment ---"
-# The ubuntu2004 Docker image ships Python 3.8; install 3.13 via pyenv
-# (pre-installed on Kokoro images). Pattern matches presubmit.sh.
-pyenv install -s 3.13
-pyenv global 3.13
+# The ubuntu2204/full:current container ships Python 3.10+, which satisfies
+# the SDK's requirements. Use it directly instead of pyenv (which downloads
+# from python.org, blocked by the MOSS network proxy).
+PYTHON="$(command -v python3)"
+echo "Using system Python: $($PYTHON --version)"
 
 python3 -m venv .venv
 source .venv/bin/activate
