@@ -88,16 +88,24 @@ By default, the SDK's default policy (`confirm_run_command()`) is permissive and
 
 However, if you configure a strict **deny-by-default** setup (using
 `policy.deny_all()`), you must explicitly allow your MCP tools by their exact
-registered names.
+namespaced names.
 
-For example, to allow a specific tool named `my_mcp_tool` exposed by your MCP
-server in a deny-by-default setup:
+To prevent name collisions across multiple MCP servers, the SDK automatically
+namespaces and prefixes all MCP tools with the pattern:
+`mcp_{sanitized_server_name}_{original_tool_name}`
+
+For example, if a server is configured with `name="google-workspace"` and
+exposes a tool named `read_email`, it will be registered as
+`mcp_google-workspace_read_email`.
+
+To allowlist this tool in a deny-by-default setup, you must use this namespaced
+name:
 
 ```python
 # In your safety policy configuration
 policies = [
     policy.deny_all(),
-    policy.allow("my_mcp_tool"),  # Must use the exact tool name
+    policy.allow("mcp_google-workspace_read_email"),  # Must use the exact namespaced tool name
 ]
 ```
 

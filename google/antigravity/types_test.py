@@ -1369,6 +1369,29 @@ class McpServerConfigTest(parameterized.TestCase):
     self.assertIsInstance(server, types.McpStdioServer)
     self.assertEqual(server.name, "stdio_server")
 
+  @parameterized.parameters(
+      "validName",
+      "valid-name",
+      "valid_name",
+      "valid_name-123",
+  )
+  def test_server_valid_names(self, name):
+    """Verifies that Gemini-compliant server names pass validation."""
+    server = types.McpStdioServer(name=name, command="node")
+    self.assertEqual(server.name, name)
+
+  @parameterized.parameters(
+      "invalid name",
+      "invalid.name",
+      "invalid/name",
+      "invalid@name",
+      "invalidName!",
+  )
+  def test_server_invalid_names_raise(self, name):
+    """Verifies that names violating Gemini's regex pattern trigger validation errors."""
+    with self.assertRaises(pydantic.ValidationError):
+      types.McpStdioServer(name=name, command="node")
+
 
 if __name__ == "__main__":
   absltest.main()

@@ -366,9 +366,16 @@ class CapabilitiesConfig(pydantic.BaseModel):
 
 
 class BaseMcpServerConfig(pydantic.BaseModel):
-  """Base configuration for all Model Context Protocol (MCP) servers."""
+  """Base configuration for all Model Context Protocol (MCP) servers.
 
-  name: str
+  Attributes:
+    name: Unique identifier for the MCP server. Must match the regex pattern
+      ^[a-zA-Z0-9_-]+$, which aligns with the naming constraints of the Gemini
+      API tool naming specification (only alphanumeric characters, hyphens, and
+      underscores are permitted).
+  """
+
+  name: Annotated[str, pydantic.Field(pattern=r"^[a-zA-Z0-9_-]+$")]
 
 
 class McpStdioServer(BaseMcpServerConfig):
