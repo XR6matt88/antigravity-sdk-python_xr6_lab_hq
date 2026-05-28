@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import pathlib
+import platform
 import shutil
 import struct
 import subprocess
@@ -1316,6 +1317,15 @@ def _to_proto_input_content(
   raise TypeError(f"Unsupported prompt content type: {type(content)}")
 
 
+def _get_sdk_version() -> str:
+  """Returns the version of the Google Antigravity SDK."""
+  try:
+    return importlib.metadata.version("google-antigravity")
+  except importlib.metadata.PackageNotFoundError:
+    # Default to a development version if package metadata is not found.
+    return "0.0.0-dev"
+
+
 def _get_default_binary_path() -> str:
   """Finds the default binary path, supporting both internal and external wheels."""
   # 1. Check environment variable first
@@ -1580,8 +1590,15 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
         )
 
     harness_config = self._build_harness_config()
+    sdk_version = _get_sdk_version()
+    client_info_proto = localharness_pb2.ClientInfo(
+        language="python",
+        version=sdk_version,
+        language_version=platform.python_version(),
+    )
     input_config = localharness_pb2.InputConfig(
         storage_directory=self._save_dir or "",
+        client_info=client_info_proto,
     )
 
     process = subprocess.Popen(
