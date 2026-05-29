@@ -4,8 +4,8 @@
 # Model Context Protocol (MCP)
 
 This example demonstrates how to connect an agent to an external Model Context
-Protocol (MCP) server. The SDK supports both `stdio` and `sse` (Server-Sent
-Events) transports.
+Protocol (MCP) server. The SDK supports both `stdio` and `http` (Streamable
+HTTP) transports.
 
 For conceptual details and information on permissions, see the
 [MCP Integration Reference Guide](../../references/mcp_integration.md).
@@ -50,18 +50,18 @@ async with Agent(config) as agent:
     print(await response.text())
 ```
 
-## Connecting via SSE
+## Connecting via Streamable HTTP
 
 You can also connect to a remote MCP server running as a web service using the
-`sse` transport:
+`http` (Streamable HTTP) transport:
 
 ```python
 from google.antigravity import Agent, LocalAgentConfig, types
 
 mcp_servers = [
-    types.McpSseServer(
-        name="my_sse_server",
-        url="https://example.com/mcp/sse",
+    types.McpStreamableHttpServer(
+        name="my_http_server",
+        url="https://example.com/mcp",
         headers={"Authorization": "Bearer your-token-here"},  # Optional headers
     )
 ]
