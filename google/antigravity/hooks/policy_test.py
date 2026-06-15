@@ -862,18 +862,18 @@ class PolicyPathScopingDirectTest(absltest.TestCase):
     ws.mkdir(exist_ok=True)
 
     self.assertTrue(
-        policy.is_path_in_workspace(str(ws / "sub/file.txt"), str(ws))
+        policy._is_path_in_workspace(str(ws / "sub/file.txt"), str(ws))
     )
 
-    self.assertTrue(policy.is_path_in_workspace(str(ws), str(ws)))
+    self.assertTrue(policy._is_path_in_workspace(str(ws), str(ws)))
 
     evil_ws = self.temp_dir_path / "my_workspace-evil"
     self.assertFalse(
-        policy.is_path_in_workspace(str(evil_ws / "file.txt"), str(ws))
+        policy._is_path_in_workspace(str(evil_ws / "file.txt"), str(ws))
     )
 
     self.assertFalse(
-        policy.is_path_in_workspace(
+        policy._is_path_in_workspace(
             str(self.temp_dir_path / "outside.txt"), str(ws)
         )
     )
@@ -887,11 +887,11 @@ class PolicyPathScopingDirectTest(absltest.TestCase):
     if policy._is_case_insensitive(ws):
       # On case-insensitive APFS/Windows, lowercased paths must match
       lower_target = str(ws).lower() + "/sub/file.txt"
-      self.assertTrue(policy.is_path_in_workspace(lower_target, str(ws)))
+      self.assertTrue(policy._is_path_in_workspace(lower_target, str(ws)))
     else:
       # On case-sensitive EXT4 Linux, mismatched casing must be blocked
       upper_target = str(ws).upper() + "/sub/file.txt"
-      self.assertFalse(policy.is_path_in_workspace(upper_target, str(ws)))
+      self.assertFalse(policy._is_path_in_workspace(upper_target, str(ws)))
 
 
 class McpPolicyTest(unittest.IsolatedAsyncioTestCase):

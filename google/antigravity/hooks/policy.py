@@ -480,7 +480,7 @@ def _is_case_insensitive(path: pathlib.Path) -> bool:
     return False
 
 
-def is_path_in_workspace(
+def _is_path_in_workspace(
     target_path: PathOrStr, workspace_path: PathOrStr
 ) -> bool:
   """Returns True if the canonicalized target_path lies strictly within workspace_path."""
@@ -527,7 +527,7 @@ def workspace_only(workspaces: Sequence[PathOrStr]) -> list[Policy]:
       # Allow omit-path edge cases (e.g. list_dir with no args uses cwd)
       return False
 
-    return not any(is_path_in_workspace(path, ws) for ws in workspaces)
+    return not any(_is_path_in_workspace(path, ws) for ws in workspaces)
 
   return [
       deny(tool, when=_outside_workspace, name="workspace_only")
