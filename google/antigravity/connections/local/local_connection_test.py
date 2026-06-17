@@ -4869,5 +4869,165 @@ class LocalConnectionSerializationTest(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(res_dict["secret"], "xxxx")
 
 
+class LocalConnectionSubagentsTest(unittest.IsolatedAsyncioTestCase):
+  """Tests verifying that static subagent configs are built into HarnessConfig."""
+
+  def setUp(self):
+    super().setUp()
+    self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+    self.workspace = pathlib.Path(self.temp_dir) / "workspace"
+    self.workspace.mkdir()
+
+  def test_builds_subagents_proto_correctly(self):
+    def my_custom_tool():
+      """A test tool."""
+      pass
+
+    def another_one():
+      """Another test tool."""
+      pass
+
+    subagent = types.SubagentConfig(
+        name="test_helper",
+        description="A helpful subagent for testing",
+        system_instructions="Always say hello.",
+        capabilities=types.SubagentCapabilities(
+            enabled_tools=[
+                types.BuiltinTools.EDIT_FILE,
+            ],
+        ),
+        # Test mixing callable tools and string tools
+        tools=[my_custom_tool, "another_one"],
+    )
+
+    tr = tool_runner.ToolRunner(tools=[my_custom_tool, another_one])
+
+    strategy = local_connection.LocalConnectionStrategy(
+        subagents=[subagent],
+        workspaces=[str(self.workspace)],
+        tool_runner=tr,
+    )
+
+    harness_config = strategy._build_harness_config()
+
+    self.assertEqual(len(harness_config.custom_subagents), 1)
+    custom_agent = harness_config.custom_subagents[0]
+    self.assertEqual(custom_agent.name, "test_helper")
+    self.assertEqual(custom_agent.description, "A helpful subagent for testing")
+    self.assertTrue(custom_agent.harness_side_tools.file_edit.enabled)
+    self.assertFalse(custom_agent.harness_side_tools.view_file.enabled)
+    self.assertFalse(custom_agent.harness_side_tools.subagents.enabled)
+    self.assertEqual(
+        [t.name for t in custom_agent.tools],
+        ["my_custom_tool", "another_one"],
+    )
+    sections = custom_agent.system_instructions.appended.appended_sections
+    self.assertEqual(sections[0].title, "System")
+    self.assertEqual(sections[0].content, "Always say hello.")
+
+  def test_builds_subagents_proto_with_sections(self):
+    subagent = types.SubagentConfig(
+        name="test_helper",
+        description="A helpful subagent for testing",
+        system_instructions=[
+            types.SystemInstructionSection(
+                title="Identity", content="You are a helper agent."
+            ),
+            types.SystemInstructionSection(
+                title="Guidelines", content="Keep responses short."
+            ),
+        ],
+    )
+
+    strategy = local_connection.LocalConnectionStrategy(
+        subagents=[subagent],
+        workspaces=[str(self.workspace)],
+    )
+
+    harness_config = strategy._build_harness_config()
+
+    self.assertEqual(len(harness_config.custom_subagents), 1)
+    custom_agent = harness_config.custom_subagents[0]
+    self.assertEqual(custom_agent.name, "test_helper")
+    sections = custom_agent.system_instructions.appended.appended_sections
+    self.assertEqual(len(sections), 2)
+    self.assertEqual(sections[0].title, "Identity")
+    self.assertEqual(sections[0].content, "You are a helper agent.")
+    self.assertEqual(sections[1].title, "Guidelines")
+    self.assertEqual(sections[1].content, "Keep responses short.")
+
+  def test_subagent_tool_not_registered_raises(self):
+    def unregistered_tool():
+      """Not added to parent."""
+      pass
+
+    subagent = types.SubagentConfig(
+        name="test_helper",
+        description="A helpful subagent",
+        tools=[unregistered_tool],
+    )
+
+    strategy = local_connection.LocalConnectionStrategy(
+        subagents=[subagent],
+        workspaces=[str(self.workspace)],
+    )
+
+    with self.assertRaisesRegex(
+        ValueError,
+        "Subagent tool 'unregistered_tool' is not registered on the main agent"
+        " config",
+    ):
+      strategy._build_harness_config()
+
+  def test_subagent_harness_tools_as_strings_raise_if_not_registered(self):
+    subagent = types.SubagentConfig(
+        name="test_helper",
+        description="A helpful subagent",
+        tools=["view_file", "code_search"],
+    )
+
+    strategy = local_connection.LocalConnectionStrategy(
+        subagents=[subagent],
+        workspaces=[str(self.workspace)],
+    )
+
+    with self.assertRaisesRegex(
+        ValueError,
+        "Subagent tool 'view_file' is not registered on the main agent config",
+    ):
+      strategy._build_harness_config()
+
+  def test_subagent_tools_stripped_and_warned(self):
+    subagent = types.SubagentConfig(
+        name="nested_helper",
+        description="A subagent trying to use subagents",
+        system_instructions="Spawn subagents.",
+        capabilities=types.SubagentCapabilities(
+            enabled_tools=[types.BuiltinTools.START_SUBAGENT],
+        ),
+    )
+
+    strategy = local_connection.LocalConnectionStrategy(
+        subagents=[subagent],
+        workspaces=[str(self.workspace)],
+    )
+
+    with self.assertLogs(level="WARNING") as log_capture:
+      harness_config = strategy._build_harness_config()
+
+    # Verify warning was logged
+    self.assertTrue(
+        any(
+            "Nested subagents are currently not supported" in msg
+            for msg in log_capture.output
+        )
+    )
+
+    self.assertEqual(len(harness_config.custom_subagents), 1)
+    custom_agent = harness_config.custom_subagents[0]
+    self.assertFalse(custom_agent.harness_side_tools.subagents.enabled)
+    self.assertFalse(custom_agent.harness_side_tools.file_edit.enabled)
+
+
 if __name__ == "__main__":
   absltest.main()

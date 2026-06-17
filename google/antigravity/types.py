@@ -50,6 +50,8 @@ __all__ = [
     "CustomSystemInstructions",
     "TemplatedSystemInstructions",
     "SystemInstructions",
+    "SubagentConfig",
+    "SubagentCapabilities",
     "BuiltinTools",
     "CapabilitiesConfig",
     "BaseMcpServerConfig",
@@ -132,6 +134,51 @@ class TemplatedSystemInstructions(pydantic.BaseModel):
 # - CustomSystemInstructions: Full replacement (Advanced usage).
 # - TemplatedSystemInstructions: Append to defaults (Recommended).
 SystemInstructions = CustomSystemInstructions | TemplatedSystemInstructions
+
+
+class SubagentCapabilities(pydantic.BaseModel):
+  """Capabilities configuration for subagents.
+
+  Attributes:
+    enabled_tools: Explicit allowlist of builtin tools to enable. Mutually
+      exclusive with disabled_tools. When None, the harness defaults are used.
+    disabled_tools: Explicit denylist of builtin tools to disable. Mutually
+      exclusive with enabled_tools. When None, the harness defaults are used.
+  """
+
+  enabled_tools: list[BuiltinTools] | None = None
+  disabled_tools: list[BuiltinTools] | None = None
+
+  @pydantic.model_validator(mode="after")
+  def _check_mutually_exclusive(self) -> "SubagentCapabilities":
+    if self.enabled_tools is not None and self.disabled_tools is not None:
+      raise ValueError(
+          "enabled_tools and disabled_tools should be mutually exclusive."
+      )
+    return self
+
+
+class SubagentConfig(pydantic.BaseModel):
+  """Configuration for a static subagent.
+
+  Attributes:
+    name: Unique name of the subagent.
+    description: Description of the subagent.
+    system_instructions: Optional system instructions for the subagent. Note
+      that these will be appended to the subagent's default system instructions.
+    capabilities: Optional capabilities config controlling allowed tools. If
+      None, defaults to read-only tools.
+    tools: Optional list of additional custom tools (callable functions or
+      string names) to enable. Any custom Python tools used by subagents must
+      also be added to the main agent's tools list in order to be available to
+      the subagent during execution.
+  """
+
+  name: str
+  description: str
+  system_instructions: str | list[SystemInstructionSection] | None = None
+  capabilities: SubagentCapabilities | None = None
+  tools: list[Callable[..., Any] | str] = pydantic.Field(default_factory=list)
 
 
 class BuiltinTools(str, enum.Enum):

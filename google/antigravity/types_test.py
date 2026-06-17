@@ -1486,5 +1486,58 @@ class McpServerConfigTest(parameterized.TestCase):
       types.McpStdioServer(name=name, command="node")
 
 
+class SubagentCapabilitiesTest(unittest.TestCase):
+  """Validates the SubagentCapabilities Pydantic model."""
+
+  def test_defaults(self):
+    sc = types.SubagentCapabilities()
+    self.assertIsNone(sc.enabled_tools)
+    self.assertIsNone(sc.disabled_tools)
+
+  def test_mutually_exclusive_ok_enabled(self):
+    sc = types.SubagentCapabilities(
+        enabled_tools=[types.BuiltinTools.EDIT_FILE]
+    )
+    self.assertEqual(sc.enabled_tools, [types.BuiltinTools.EDIT_FILE])
+    self.assertIsNone(sc.disabled_tools)
+
+  def test_mutually_exclusive_ok_disabled(self):
+    sc = types.SubagentCapabilities(
+        disabled_tools=[types.BuiltinTools.RUN_COMMAND]
+    )
+    self.assertIsNone(sc.enabled_tools)
+    self.assertEqual(sc.disabled_tools, [types.BuiltinTools.RUN_COMMAND])
+
+  def test_mutually_exclusive_raises(self):
+    with self.assertRaises(pydantic.ValidationError):
+      types.SubagentCapabilities(
+          enabled_tools=[types.BuiltinTools.EDIT_FILE],
+          disabled_tools=[types.BuiltinTools.RUN_COMMAND],
+      )
+
+
+class SubagentConfigTest(unittest.TestCase):
+  """Validates the SubagentConfig Pydantic model."""
+
+  def test_basic_construction(self):
+    sub = types.SubagentConfig(
+        name="helper",
+        description="helpful agent",
+        system_instructions="always help",
+    )
+    self.assertEqual(sub.name, "helper")
+    self.assertEqual(sub.description, "helpful agent")
+    self.assertEqual(sub.system_instructions, "always help")
+    self.assertIsNone(sub.capabilities)
+    self.assertEqual(sub.tools, [])
+
+  def test_required_fields(self):
+    with self.assertRaises(pydantic.ValidationError):
+      types.SubagentConfig(**{"name": "helper"})  # Missing description
+
+    with self.assertRaises(pydantic.ValidationError):
+      types.SubagentConfig(**{"description": "helpful agent"})  # Missing name
+
+
 if __name__ == "__main__":
   absltest.main()

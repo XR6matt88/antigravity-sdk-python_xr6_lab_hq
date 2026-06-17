@@ -480,7 +480,7 @@ def callable_to_tool_proto(
   """
   if isinstance(fn, t_runner.ToolWithSchema):
     return localharness_pb2.Tool(
-        name=fn.__name__,
+        name=getattr(fn, "__name__", ""),
         description=fn.__doc__ or "",
         parameters_json_schema=json.dumps(fn.input_schema),
     )
@@ -488,7 +488,7 @@ def callable_to_tool_proto(
   # Use the ToolRunner's public callable to strip injectable params.
   target_fn = fn
   if tool_runner is not None:
-    tool_name = fn.__name__
+    tool_name = getattr(fn, "__name__", "")
     if tool_name in tool_runner.tools:
       target_fn = tool_runner.get_public_callable(tool_name)
 
@@ -1594,6 +1594,7 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
       workspaces: list[str] | None = None,
       app_data_dir: str | None = None,
       mcp_servers: Sequence[types.McpServerConfig] | None = None,
+      subagents: list[types.SubagentConfig] | None = None,
   ):
     """Initializes the instance.
 
@@ -1609,6 +1610,7 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
       workspaces: Optional list of workspace paths.
       app_data_dir: Optional directory for harness app data.
       mcp_servers: Optional sequence of MCP server configurations.
+      subagents: Optional list of static subagent configurations.
     """
     self._binary_path = _get_default_binary_path()
     self._tool_runner = tool_runner
@@ -1633,66 +1635,90 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
     self._save_dir = save_dir
     self._workspaces = [normalize_wire_path(ws) for ws in workspaces or []]
     self._app_data_dir = app_data_dir
+    self._subagents = subagents or []
 
-  def _build_harness_config(self) -> localharness_pb2.HarnessConfig:
-    """Translates Pydantic config objects into a HarnessConfig proto."""
-    tool_protos = []
-    if self._tool_runner:
-      tool_protos = [
-          callable_to_tool_proto(fn, tool_runner=self._tool_runner)
-          for fn in self._tool_runner.tools.values()
-      ]
-
-    system_instructions_proto = None
-    if self._system_instructions:
-      system_instructions_proto = localharness_pb2.SystemInstructions()
-      if isinstance(self._system_instructions, types.CustomSystemInstructions):
-        system_instructions_proto.custom.CopyFrom(
-            localharness_pb2.CustomSystemInstructions(
-                part=[
-                    localharness_pb2.CustomSystemInstructions.Part(
-                        text=self._system_instructions.text
-                    )
-                ]
-            )
+  def _resolve_active_tools(
+      self,
+      cfg: types.CapabilitiesConfig | types.SubagentCapabilities | None,
+      is_subagent: bool = False,
+  ) -> set[types.BuiltinTools]:
+    if cfg is None:
+      if is_subagent:
+        cfg = types.SubagentCapabilities(
+            enabled_tools=types.BuiltinTools.read_only()
         )
-      elif isinstance(
-          self._system_instructions, types.TemplatedSystemInstructions
-      ):
-        appended = localharness_pb2.AppendedSystemInstructions()
-        if self._system_instructions.identity:
-          appended.custom_identity = self._system_instructions.identity
-        for sec in self._system_instructions.sections:
-          appended.appended_sections.add(title=sec.title, content=sec.content)
-        system_instructions_proto.appended.CopyFrom(appended)
-
-    models_protos = build_models_proto(self._models)
-    workspace_protos = [
-        localharness_pb2.Workspace(
-            filesystem_workspace=localharness_pb2.FilesystemWorkspace(
-                directory=pathlib.Path(p).as_posix()
-            )
+      else:
+        cfg = types.CapabilitiesConfig(
+            enabled_tools=types.BuiltinTools.read_only(),
+            enable_subagents=False,
         )
-        for p in self._workspaces
-    ]
-
-    cfg = self._capabilities_config
-
-    # Determine which BuiltinTools are active.
     all_tools = set(types.BuiltinTools)
     if cfg.enabled_tools is not None:
-      active_tools = set(cfg.enabled_tools)
-    elif cfg.disabled_tools is not None:
-      active_tools = all_tools - set(cfg.disabled_tools)
-    else:
-      active_tools = all_tools
+      return set(cfg.enabled_tools)
+    if cfg.disabled_tools is not None:
+      return all_tools - set(cfg.disabled_tools)
+    return all_tools
 
-    subagent_enabled = (
-        cfg.enable_subagents
-        and types.BuiltinTools.START_SUBAGENT in active_tools
-    )
+  def _to_system_instructions_proto(
+      self,
+      instructions: str | types.SystemInstructions | None,
+  ) -> localharness_pb2.SystemInstructions | None:
+    if not instructions:
+      return None
+    if isinstance(instructions, str):
+      instructions = types.CustomSystemInstructions(text=instructions)
 
-    harness_side_tools = localharness_pb2.HarnessSideTools(
+    proto = localharness_pb2.SystemInstructions()
+    if isinstance(instructions, types.CustomSystemInstructions):
+      proto.custom.CopyFrom(
+          localharness_pb2.CustomSystemInstructions(
+              part=[
+                  localharness_pb2.CustomSystemInstructions.Part(
+                      text=instructions.text
+                  )
+              ]
+          )
+      )
+    elif isinstance(instructions, types.TemplatedSystemInstructions):
+      appended = localharness_pb2.AppendedSystemInstructions()
+      if instructions.identity:
+        appended.custom_identity = instructions.identity
+      for sec in instructions.sections:
+        appended.appended_sections.add(title=sec.title, content=sec.content)
+      proto.appended.CopyFrom(appended)
+    return proto
+
+  def _to_subagent_system_instructions_proto(
+      self,
+      instructions: str | list[types.SystemInstructionSection] | None,
+  ) -> localharness_pb2.SystemInstructions | None:
+    if not instructions:
+      return None
+    appended = localharness_pb2.AppendedSystemInstructions()
+    if isinstance(instructions, str):
+      appended.appended_sections.add(title="System", content=instructions)
+    elif isinstance(instructions, list):
+      for sec in instructions:
+        appended.appended_sections.add(title=sec.title, content=sec.content)
+
+    proto = localharness_pb2.SystemInstructions()
+    proto.appended.CopyFrom(appended)
+    return proto
+
+  def _to_harness_side_tools_proto(
+      self,
+      cfg: types.CapabilitiesConfig | types.SubagentCapabilities | None,
+      is_subagent: bool = False,
+  ) -> localharness_pb2.HarnessSideTools:
+    active_tools = self._resolve_active_tools(cfg, is_subagent=is_subagent)
+    subagent_enabled = False
+    if not is_subagent:
+      subagent_enabled = (
+          getattr(cfg, "enable_subagents", True)
+          and types.BuiltinTools.START_SUBAGENT in active_tools
+      )
+
+    return localharness_pb2.HarnessSideTools(
         subagents=localharness_pb2.SubagentsConfig(enabled=subagent_enabled),
         find=localharness_pb2.FindToolConfig(
             enabled=types.BuiltinTools.FIND_FILE in active_tools
@@ -1726,6 +1752,88 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
         ),
     )
 
+  def _build_custom_subagents_protos(
+      self,
+      main_agent_tool_protos: dict[str, localharness_pb2.Tool],
+  ) -> list[localharness_pb2.CustomAgent]:
+    """Resolves and builds CustomAgent configuration protos for subagents."""
+    custom_agents_protos = []
+    for subagent in self._subagents:
+      capabilities = subagent.capabilities or types.SubagentCapabilities(
+          enabled_tools=types.BuiltinTools.read_only(),
+      )
+
+      active_tools = self._resolve_active_tools(capabilities, is_subagent=True)
+      if types.BuiltinTools.START_SUBAGENT in active_tools:
+        logging.warning(
+            "Nested subagents are currently not supported. Subagent tools will"
+            " be disabled."
+        )
+
+      resolved_subagent_tools = []
+      for tool in subagent.tools or []:
+        if isinstance(tool, str):
+          name = tool
+        else:
+          name = getattr(tool, "__name__", None)
+          if name is None:
+            raise ValueError(
+                f"Invalid tool type in subagent '{subagent.name}' tools list:"
+                f" {tool}"
+            )
+
+        if name not in main_agent_tool_protos:
+          raise ValueError(
+              f"Subagent tool '{name}' is not registered on the main agent"
+              " config. Any custom tools used by subagents must also be added"
+              " to the main agent's tools list."
+          )
+
+        resolved_subagent_tools.append(main_agent_tool_protos[name])
+
+      custom_agents_protos.append(
+          localharness_pb2.CustomAgent(
+              name=subagent.name,
+              description=subagent.description,
+              system_instructions=self._to_subagent_system_instructions_proto(
+                  subagent.system_instructions
+              ),
+              harness_side_tools=self._to_harness_side_tools_proto(
+                  capabilities, is_subagent=True
+              ),
+              tools=resolved_subagent_tools,
+          )
+      )
+    return custom_agents_protos
+
+  def _build_harness_config(self) -> localharness_pb2.HarnessConfig:
+    """Translates Pydantic config objects into a HarnessConfig proto."""
+    main_agent_tool_protos = {}
+    if self._tool_runner:
+      for fn in self._tool_runner.tools.values():
+        proto = callable_to_tool_proto(fn, tool_runner=self._tool_runner)
+        main_agent_tool_protos[proto.name] = proto
+
+    system_instructions_proto = self._to_system_instructions_proto(
+        self._system_instructions
+    )
+
+    models_protos = []
+    if self._models:
+      models_protos = build_models_proto(self._models)
+    workspace_protos = [
+        localharness_pb2.Workspace(
+            filesystem_workspace=localharness_pb2.FilesystemWorkspace(
+                directory=pathlib.Path(p).as_posix()
+            )
+        )
+        for p in self._workspaces
+    ]
+
+    harness_side_tools = self._to_harness_side_tools_proto(
+        self._capabilities_config
+    )
+
     mcp_server_protos = [
         _to_mcp_server_proto(s) for s in self._mcp_servers or []
     ]
@@ -1734,8 +1842,11 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
     if self._hook_runner and self._hook_runner.on_session_start_hooks:
       enabled_hooks.append(localharness_pb2.LIFECYCLE_HOOK_ON_SESSION_START)
 
+    custom_agents_protos = self._build_custom_subagents_protos(
+        main_agent_tool_protos
+    )
     return localharness_pb2.HarnessConfig(
-        tools=tool_protos,
+        tools=list(main_agent_tool_protos.values()),
         system_instructions=system_instructions_proto,
         cascade_id=self._conversation_id or "",
         models=models_protos,
@@ -1743,11 +1854,16 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
         skills_paths=self._skills_paths or [],
         harness_side_tools=harness_side_tools,
         # 0 tells the harness to use its default (50000 tokens).
-        compaction_threshold=cfg.compaction_threshold or 0,
-        finish_tool_schema_json=cfg.finish_tool_schema_json or "",
+        compaction_threshold=(
+            self._capabilities_config.compaction_threshold or 0
+        ),
+        finish_tool_schema_json=(
+            self._capabilities_config.finish_tool_schema_json or ""
+        ),
         app_data_dir=self._app_data_dir or "",
         mcp_servers=mcp_server_protos,
         enabled_hooks=enabled_hooks,
+        custom_subagents=custom_agents_protos,
     )
 
   def connect(self) -> connection.Connection:

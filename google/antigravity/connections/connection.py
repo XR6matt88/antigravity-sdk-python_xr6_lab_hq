@@ -63,6 +63,7 @@ class AgentConfig(abc.ABC, pydantic.BaseModel):
   app_data_dir: str | None = None
   response_schema: dict[str, Any] | type[pydantic.BaseModel] | str | None = None
   skills_paths: list[str] = pydantic.Field(default_factory=list)
+  subagents: list[types.SubagentConfig] = pydantic.Field(default_factory=list)
 
   @pydantic.field_validator("response_schema")
   def _validate_schema(cls, v):  # pylint: disable=no-self-argument
@@ -187,9 +188,6 @@ class Connection(abc.ABC):
     Yields Step objects representing agent actions. The exact fields populated
     depend on the backend, but all steps conform to the Step model.
 
-    Returns:
-      An async iterator of Step objects.
-
     Yields:
       Step objects as they occur.
     """
@@ -277,3 +275,5 @@ class ConnectionStrategy(abc.ABC):
       exc_tb: The traceback, if any.
     """
     ...
+
+

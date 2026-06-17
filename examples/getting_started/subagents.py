@@ -14,26 +14,34 @@
 
 """Example demonstrating subagents in Google Antigravity SDK.
 
-This example shows how an agent can spawn a subagent to delegate a specific
-task, in this case, researching the examples directory to generate a lesson
-plan.
-
-Subagents are valuable for scoping context usage. By delegating a heavy research
-task to a subagent, the main agent avoids filling its own context window with
-all the raw documents, receiving only the synthesized result.
+This example shows two subagent scenarios:
+  1. Dynamic Subagent: The agent dynamically spawns a clone of itself ("self")
+     to delegate a heavy research task (listing/reading files), keeping its
+     own context window clean.
+  2. Custom Static Subagent: The agent is pre-configured with a custom, static
+     subagent definition ('code_reviewer') that has its own system instructions
+     and custom tools (e.g. get_reviewer_badge).
 
 To run:
   python subagents.py
 
 Criteria for correct script performance:
   1. The script exits cleanly with return code 0 (no unhandled exceptions).
-  2. The agent spawns a subagent to research the examples directory.
-  3. The subagent hook logs fire when the subagent is created and completes.
-  4. The agent produces a non-empty lesson plan based on the subagent's
-     research.
+  2. In Scenario 1, the agent dynamically spawns a subagent to research the
+     examples directory.
+  3. In Scenario 1, the agent produces a non-empty lesson plan.
+  4. In Scenario 2, the 'code_reviewer' subagent audits target_code.py,
+     producing warnings prefixed with '[AUDIT_WARNING]'.
+  5. In Scenario 2, the subagent uses the 'get_reviewer_badge' tool to sign the
+     report with 'Senior-L3-Auditor-Badge'.
+  6. Subagent hook logs fire for both scenarios, showing start/done events.
 """
 
 import asyncio
+import logging
+import pathlib
+import sys
+import tempfile
 from typing import Any
 
 from google.antigravity import Agent
@@ -73,7 +81,14 @@ async def log_post_tool(data: Any) -> None:
     print(f"{indent}- [Done]: {data.name} (ID: {data.id}) ✅", flush=True)
 
 
-async def main() -> None:
+def get_reviewer_badge() -> str:
+  """Returns the reviewer's official certification badge name."""
+  return "Senior-L3-Auditor-Badge"
+
+
+async def run_dynamic_subagent() -> None:
+  """Runs a dynamic subagent research scenario."""
+  print("\n=== Scenario 1: Dynamic Subagent (Self Clone) ===")
   # Enable subagents in the config and add hooks for visibility.
   config = LocalAgentConfig(
       capabilities=types.CapabilitiesConfig(
@@ -83,22 +98,90 @@ async def main() -> None:
   )
 
   async with Agent(config) as my_agent:
-    # Prompt the agent to use a subagent to research and generate a lesson plan.
     prompt = (
-        "Use a subagent to research the Google Antigravity SDK examples in the"
-        " parent"
-        " directory. Delegate the task of listing and reading the files to the"
-        " subagent, and then generate a lesson plan for me to learn more based"
-        " on its findings."
+        "Use a subagent to research the Google Antigravity SDK examples in"
+        " the parent directory. Delegate the task of listing and reading the"
+        " files to the subagent, and then generate a lesson plan for me to"
+        " learn more based on its findings."
     )
     print(f"  User: {prompt}")
-
     response = await my_agent.chat(prompt)
-
-    # Await the full aggregated text response. This includes both the
-    # subagent's output and the main agent's regular response text.
     response_text = await response.text()
     print(f"\n  Agent:\n{response_text}")
+
+
+async def run_custom_static_subagent() -> None:
+  """Runs a custom static subagent code-review audit scenario."""
+  print("\n=== Scenario 2: Custom Static Subagent ===")
+  with tempfile.TemporaryDirectory() as tmpdir:
+    workspace_path = pathlib.Path(tmpdir) / "workspace"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+
+    # Write a target file for the reviewer subagent to check.
+    target_file = workspace_path / "target_code.py"
+    target_file.write_text(
+        "def hello():\n"
+        "  print('hello')\n"
+        "\n"
+        "def add(a, b):\n"
+        "  \"\"\"Adds two numbers.\"\"\"\n"
+        "  return a + b\n",
+        encoding="utf-8",
+    )
+
+    reviewer_subagent = types.SubagentConfig(
+        name="code_reviewer",
+        description="Audits source code files and reports missing docstrings.",
+        system_instructions=(
+            "You are a code reviewer. Read python files in the workspace and "
+            "check if all function declarations have docstrings. For each "
+            "function that is missing a docstring, output a warning prefixed "
+            "with '[AUDIT_WARNING]'. "
+            "CRITICAL: Every warning you output MUST start with "
+            "'[AUDIT_WARNING]'. Use the 'get_reviewer_badge' tool to sign "
+            "your final audit report with your official badge name. "
+            "Output your report directly in your final response. Do not use "
+            "the send_message tool to deliver it."
+        ),
+        tools=[get_reviewer_badge],
+    )
+
+    config = LocalAgentConfig(
+        subagents=[reviewer_subagent],
+        workspaces=[str(workspace_path)],
+        tools=[get_reviewer_badge],
+        hooks=[log_pre_tool, log_post_tool],
+    )
+
+    async with Agent(config) as my_agent:
+      prompt = (
+          f"Ask the 'code_reviewer' subagent to review {target_file.name} "
+          "and sign the report with their reviewer badge name. "
+          "Show me the exact warnings it produced verbatim, including any "
+          "prefixes and the badge signature."
+      )
+      print(f"  User: {prompt}")
+
+      response = await my_agent.chat(prompt)
+      response_text = await response.text()
+      print(f"\n  Agent:\n{response_text}")
+
+
+async def main() -> None:
+  # Configure logging
+  root = logging.getLogger()
+  root.setLevel(logging.INFO)
+  for h in root.handlers[:]:
+    root.removeHandler(h)
+  ch = logging.StreamHandler(sys.stderr)
+  ch.setLevel(logging.INFO)
+  ch.setFormatter(
+      logging.Formatter("%(levelname)s:%(name)s:%(message)s")
+  )
+  root.addHandler(ch)
+
+  await run_dynamic_subagent()
+  await run_custom_static_subagent()
 
 
 if __name__ == "__main__":
