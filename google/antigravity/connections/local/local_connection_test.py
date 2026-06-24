@@ -1872,6 +1872,7 @@ class LocalConnectionStrategyConfigTest(parameterized.TestCase):
     self.assertTrue(config.harness_side_tools.grep_search.enabled)
     self.assertTrue(config.harness_side_tools.list_dir.enabled)
     self.assertTrue(config.harness_side_tools.search_web.enabled)
+    self.assertTrue(config.harness_side_tools.read_url_content.enabled)
 
   def test_capabilities_config_enabled_tools(self):
     """Verifies that enabled_tools allowlist excludes non-listed tools.
@@ -1899,6 +1900,9 @@ class LocalConnectionStrategyConfigTest(parameterized.TestCase):
         grep_search=localharness_pb2.GrepSearchToolConfig(enabled=False),
         list_dir=localharness_pb2.ListDirToolConfig(enabled=False),
         search_web=localharness_pb2.SearchWebToolConfig(enabled=False),
+        read_url_content=localharness_pb2.ReadUrlContentToolConfig(
+            enabled=False
+        ),
     )
 
     self.assertEqual(config.harness_side_tools, expected_harness_side_tools)

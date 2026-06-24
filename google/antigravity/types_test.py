@@ -580,6 +580,11 @@ class BuiltinToolsTest(parameterized.TestCase):
       ("run_command", types.BuiltinTools.RUN_COMMAND, "run_command"),
       ("ask_question", types.BuiltinTools.ASK_QUESTION, "ask_question"),
       ("search_web", types.BuiltinTools.SEARCH_WEB, "search_web"),
+      (
+          "read_url_content",
+          types.BuiltinTools.READ_URL_CONTENT,
+          "read_url_content",
+      ),
       ("start_subagent", types.BuiltinTools.START_SUBAGENT, "start_subagent"),
       ("generate_image", types.BuiltinTools.GENERATE_IMAGE, "generate_image"),
   )

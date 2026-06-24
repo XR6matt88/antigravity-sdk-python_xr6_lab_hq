@@ -487,6 +487,25 @@ class HookRouterStructuredExtractionTest(absltest.TestCase):
         ),
     )
 
+  def test_extract_read_url_content(self):
+    self._run_extraction_test(
+        tool_name="read_url_content",
+        action_kwargs=dict(
+            read_url_content=localharness_pb2.ActionReadUrlContent(
+                url="https://example.com",
+                title="Example Domain",
+                summary="example domain summary",
+                content_path="/tmp/content.md",
+            )
+        ),
+        assertion_fn=lambda res: (
+            self.assertIsInstance(res.result, local_types.ReadUrlContentResult),
+            self.assertEqual(res.result.title, "Example Domain"),
+            self.assertEqual(res.result.summary, "example domain summary"),
+            self.assertEqual(res.result.content_path, "/tmp/content.md"),
+        ),
+    )
+
   def test_fallback_view_file(self):
     self._run_extraction_test(
         tool_name="view_file",

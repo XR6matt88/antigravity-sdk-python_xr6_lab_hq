@@ -165,6 +165,9 @@ def _extract_tool_result(
   _edit_file = BUILTIN_TOOL_PROTO_FIELDS[types.BuiltinTools.EDIT_FILE]
   _gen_image = BUILTIN_TOOL_PROTO_FIELDS[types.BuiltinTools.GENERATE_IMAGE]
   _search_web = BUILTIN_TOOL_PROTO_FIELDS[types.BuiltinTools.SEARCH_WEB]
+  _read_url_content = BUILTIN_TOOL_PROTO_FIELDS[
+      types.BuiltinTools.READ_URL_CONTENT
+  ]
 
   # run_command -> raw stdout/stderr, e.g. "hello world\n"
   if step_update.HasField(_run_command):
@@ -211,6 +214,15 @@ def _extract_tool_result(
     sw = step_update.search_web
     if sw.summary:
       return local_types.SearchWebResult(summary=sw.summary)
+  # read_url_content -> title, summary, content_path
+  elif step_update.HasField(_read_url_content):
+    ruc = step_update.read_url_content
+    if ruc.summary or ruc.title or ruc.content_path:
+      return local_types.ReadUrlContentResult(
+          title=ruc.title,
+          summary=ruc.summary,
+          content_path=ruc.content_path,
+      )
   return None
 
 
@@ -1693,6 +1705,9 @@ class LocalConnectionStrategy(connection.ConnectionStrategy):
         ),
         search_web=localharness_pb2.SearchWebToolConfig(
             enabled=types.BuiltinTools.SEARCH_WEB in active_tools
+        ),
+        read_url_content=localharness_pb2.ReadUrlContentToolConfig(
+            enabled=types.BuiltinTools.READ_URL_CONTENT in active_tools
         ),
     )
 

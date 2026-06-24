@@ -96,5 +96,8 @@ relevant information.
     `examples/getting_started/structured_output.md`.
 -   If the user needs to add, configure, or load agent skills into the Google
     Antigravity SDK agent, read `examples/getting_started/agent_skills.md`.
--   If the user needs to enable and use built-in web tools (like Google Search)
-    with the agent, read `examples/getting_started/web_tools.md`.
+-   If the user needs to enable and use built-in web tools (like Google Search
+    or URL fetching) with the agent, read
+    `examples/getting_started/web_tools.md`. (Note: when fetching massive web
+    pages or articles, pair `read_url_content` with `view_file` to inspect
+    cached disk files).

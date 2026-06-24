@@ -46,6 +46,7 @@ BUILTIN_TOOL_PROTO_FIELDS: dict[types.BuiltinTools, str] = {
     types.BuiltinTools.START_SUBAGENT: "invoke_subagent",
     types.BuiltinTools.GENERATE_IMAGE: "generate_image",
     types.BuiltinTools.SEARCH_WEB: "search_web",
+    types.BuiltinTools.READ_URL_CONTENT: "read_url_content",
     types.BuiltinTools.FINISH: "finish",
 }
 

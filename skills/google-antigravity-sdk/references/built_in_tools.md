@@ -33,6 +33,8 @@ descriptions.
 :                               :                    : images.                :
 | `BuiltinTools.SEARCH_WEB`     | `search_web`       | Search the web for     |
 :                               :                    : information.           :
+| `BuiltinTools.READ_URL_CONTENT`| `read_url_content` | Fetch and read URL     |
+:                               :                    : content.               :
 
 > [!NOTE] Some production backends may require additional environment or
 > filesystem configuration to support these tools.

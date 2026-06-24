@@ -26,13 +26,9 @@ from google.antigravity import LocalAgentConfig
 from google.antigravity import types
 
 
-async def main() -> None:
-  """Runs the web tools example.
-
-  This function initializes an agent with web search capabilities,
-  sends a query about the world population, and prints the agent's response.
-  """
-  # Configure the agent to use the web search tool.
+async def run_web_search_example() -> None:
+  """Runs the web search tool example."""
+  print("=== 1. Web Search Example ===\n")
   config = LocalAgentConfig(
       capabilities=CapabilitiesConfig(
           enabled_tools=[
@@ -54,6 +50,45 @@ async def main() -> None:
     # Await the full aggregated text response.
     response_text = await response.text()
     print(f"\nAgent Response:\n{response_text}")
+
+
+async def run_url_fetching_example() -> None:
+  """Runs the URL fetching tool example."""
+  print("\n=== 2. URL Fetching (read_url_content) Example ===\n")
+  config = LocalAgentConfig(
+      capabilities=CapabilitiesConfig(
+          enabled_tools=[
+              types.BuiltinTools.READ_URL_CONTENT,
+              # Note: For massive web pages or lengthy documentation,
+              # read_url_content caches the downloaded payload to disk.
+              # Enabling VIEW_FILE allows the agent to inspect those files.
+              types.BuiltinTools.VIEW_FILE,
+          ]
+      ),
+  )
+
+  async with Agent(config) as my_agent:
+    target_url = "https://en.wikipedia.org/wiki/Google"
+    prompt = (
+        f"Please read the full page content from {target_url} and tell me the"
+        " exact date that Google acquired DeepMind Technologies."
+    )
+    print(f"User: {prompt}\n")
+
+    print("Agent is fetching and reading URL content...")
+    response = await my_agent.chat(prompt)
+
+    response_text = await response.text()
+    print(f"\nAgent Response:\n{response_text}")
+
+
+async def main() -> None:
+  """Runs the web tools examples.
+
+  Demonstrates enabling and running SEARCH_WEB and READ_URL_CONTENT tools.
+  """
+  await run_web_search_example()
+  await run_url_fetching_example()
 
 
 if __name__ == "__main__":

@@ -96,6 +96,17 @@ class SearchWebResult(pydantic.BaseModel):
     return self.summary
 
 
+class ReadUrlContentResult(pydantic.BaseModel):
+  """Structured result from a read_url_content tool execution."""
+
+  title: str = ""
+  summary: str = ""
+  content_path: str = ""
+
+  def __str__(self) -> str:
+    return self.summary or self.title or self.content_path
+
+
 class TextResult(pydantic.BaseModel):
   """Generic fallback for tools without structured output (e.g. view_file)."""
 
@@ -114,5 +125,6 @@ ToolOutput = (
     | EditFileResult
     | GenerateImageResult
     | SearchWebResult
+    | ReadUrlContentResult
     | TextResult
 )

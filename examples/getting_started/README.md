@@ -61,7 +61,7 @@ Extending agent capabilities and orchestrating multi-agent workflows.
 * [agent_skills.py](agent_skills.py): Discovering and loading domain-specific skills from the filesystem (`SKILL.md`).
 * [mcp_tools.py](mcp_tools.py): Connecting to external toolsets via the Model Context Protocol (MCP).
 * [subagents.py](subagents.py): Spawning and delegating specialized tasks to sub-agents.
-* [web_tools.py](web_tools.py): Enabling and utilizing built-in web search tools for grounding.
+* [web_tools.py](web_tools.py): Enabling and utilizing built-in web search and URL content fetching tools.
 
 ### ⚙️ Lifecycle, Proactivity, & Observability
 Controlling execution flow, reacting to background events, auditing performance, and maintaining session state.

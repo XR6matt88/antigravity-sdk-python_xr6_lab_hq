@@ -196,6 +196,7 @@ class BuiltinTools(str, enum.Enum):
     START_SUBAGENT: Invoke a subagent.
     GENERATE_IMAGE: Generate or edit images.
     SEARCH_WEB: Search the web.
+    READ_URL_CONTENT: Read content from a URL.
     FINISH: Finish the conversation and return structured output.
   """
 
@@ -210,6 +211,7 @@ class BuiltinTools(str, enum.Enum):
   START_SUBAGENT = "start_subagent"
   GENERATE_IMAGE = "generate_image"
   SEARCH_WEB = "search_web"
+  READ_URL_CONTENT = "read_url_content"
   FINISH = "finish"
 
   @classmethod
@@ -224,6 +226,7 @@ class BuiltinTools(str, enum.Enum):
         cls.SEARCH_DIR,
         cls.FIND_FILE,
         cls.VIEW_FILE,
+        cls.READ_URL_CONTENT,
         cls.FINISH,
     ]
 
@@ -245,6 +248,7 @@ class BuiltinTools(str, enum.Enum):
         cls.START_SUBAGENT,
         cls.GENERATE_IMAGE,
         cls.SEARCH_WEB,
+        cls.READ_URL_CONTENT,
         cls.FINISH,
     ]
 
